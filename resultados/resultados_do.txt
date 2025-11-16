@@ -1,0 +1,1588 @@
+--------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Users\USER\Documents\ESTUDIOS_AVANZADA\MOLINA\resultados/resultados_do.txt
+  log type:  text
+ opened on:  16 Nov 2025, 00:07:31
+
+. 
+. * ============================================
+. * PREPARACIÓN DE DATOS
+. * ============================================
+. 
+. * Importar datos desde CSV delimitado
+. import delimited "data\DATA_MOLINA_DELIMITADO.csv", clear varnames(1) encoding(UTF-8)
+(6 vars, 72 obs)
+
+. 
+. * Verificar importación
+. desc
+
+Contains data
+ Observations:            72                  
+    Variables:             6                  
+--------------------------------------------------------------------------------------------
+Variable      Storage   Display    Value
+    name         type    format    label      Variable label
+--------------------------------------------------------------------------------------------
+trimestre       str6    %9s                   Trimestre
+remesas         str11   %11s                  Remesas
+gastodeconsum~s str12   %12s                  Gasto de Consumo final Hogares
+pibreal         str12   %12s                  PIB Real
+índicedepreci~c float   %9.0g                 Índice de Precios al Consumidor (IPC)
+variaciónipc    float   %9.0g                 Variación IPC
+--------------------------------------------------------------------------------------------
+Sorted by: 
+     Note: Dataset has changed since last saved.
+
+. list in 1/5
+
+     +--------------------------------------------------------------------------+
+     | trimes~e     remesas   gastodecon~s        pibreal   índice~c   variac~c |
+     |--------------------------------------------------------------------------|
+  1. |   2007Q1   731,187.6    11,377,291     17,292,656      106.83       2.06 |
+  2. |   2007Q2   833,343.4    11,433,545     17,407,117      107.07       1.71 |
+  3. |   2007Q3   878,900.6    11,597,022     17,692,524      108.12       2.53 |
+  4. |   2007Q4   891,946.8    11,675,881     17,855,848      109.37       2.79 |
+  5. |   2008Q1   820,549.7    11,790,625     18,323,365      112.47       5.28 |
+     +--------------------------------------------------------------------------+
+
+. 
+. * Limpiar nombres de variables (remover espacios)
+. rename gastodeconsumofinalhogar consumo_hogares
+
+. rename pibre pib_real
+
+. rename índicedepreciosalconsumi ipc
+
+. rename variaciónipc var_ipc
+
+. 
+. * Convertir variables numéricas con separadores de miles
+. destring remesas, replace ignore(",")
+remesas: character , removed; replaced as double
+
+. destring consumo_hogares, replace ignore(",")
+consumo_hogares: character , removed; replaced as long
+
+. destring pib_real, replace ignore(",")
+pib_real: character , removed; replaced as long
+
+. 
+. * Generar variable temporal desde el string Trimestre
+. gen year = real(substr(trimestre, 1, 4))
+
+. gen quarter = real(substr(trimestre, 6, 1))
+
+. gen time = yq(year, quarter)
+
+. format time %tq
+
+. tsset time
+
+Time variable: time, 2007q1 to 2024q4
+        Delta: 1 quarter
+
+. 
+. * Estadísticas descriptivas iniciales
+. summarize remesas consumo_hogares pib_real ipc
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+     remesas |         72    837664.1    294937.3   530441.3    1786504
+consumo_ho~s |         72    1.55e+07     2200421   1.14e+07   1.93e+07
+    pib_real |         72    2.42e+07     3536876   1.73e+07   2.94e+07
+         ipc |         72    117.1207    14.76461     101.79     150.58
+
+. 
+. * ============================================
+. * TRANSFORMACIONES LOGARÍTMICAS
+. * ============================================
+. 
+. * Variable dependiente y variables independientes
+. gen logCONS = ln(consumo_hogares)
+
+. gen logREM = ln(remesas)
+
+. gen logPIB = ln(pib_real)
+
+. 
+. * Etiquetas descriptivas
+. label var logCONS "Log del Consumo Final de los Hogares"
+
+. label var logREM "Log de las Remesas Recibidas"
+
+. label var logPIB "Log del PIB Real"
+
+. label var ipc "Índice de Precios al Consumidor"
+
+. label var var_ipc "Variación del IPC (%)"
+
+. 
+. * Verificar transformaciones
+. summarize logCONS logREM logPIB ipc
+
+    Variable |        Obs        Mean    Std. dev.       Min        Max
+-------------+---------------------------------------------------------
+     logCONS |         72    16.54867     .146541   16.24713   16.77592
+      logREM |         72    13.58928    .2996719   13.18146   14.39577
+      logPIB |         72    16.99051    .1544303   16.66579   17.19521
+         ipc |         72    117.1207    14.76461     101.79     150.58
+
+. 
+. * ============================================
+. * PASO 1: IDENTIFICACIÓN DE COMPONENTES DETERMINISTAS
+. * ============================================
+. 
+. * Generar variable de tendencia temporal
+. gen t = _n
+
+. 
+. * Evaluar presencia de tendencia determinista en cada serie
+. di _newline(2) "=== PASO 1: IDENTIFICACIÓN DETERMINISTA ===" _newline
+
+
+=== PASO 1: IDENTIFICACIÓN DETERMINISTA ===
+
+
+. 
+. * Consumo de hogares
+. quietly reg logCONS t
+
+. di "1. Log Consumo Hogares vs Tendencia:"
+1. Log Consumo Hogares vs Tendencia:
+
+. test t
+
+ ( 1)  t = 0
+
+       F(  1,    70) =  445.20
+            Prob > F =    0.0000
+
+. scalar p_tendencia_cons = r(p)
+
+. di "   p-value = " %6.4f p_tendencia_cons
+   p-value = 0.0000
+
+. 
+. * Remesas
+. quietly reg logREM t
+
+. di _newline "2. Log Remesas vs Tendencia:"
+
+2. Log Remesas vs Tendencia:
+
+. test t
+
+ ( 1)  t = 0
+
+       F(  1,    70) =   65.21
+            Prob > F =    0.0000
+
+. scalar p_tendencia_rem = r(p)
+
+. di "   p-value = " %6.4f p_tendencia_rem
+   p-value = 0.0000
+
+. 
+. * PIB
+. quietly reg logPIB t
+
+. di _newline "3. Log PIB vs Tendencia:"
+
+3. Log PIB vs Tendencia:
+
+. test t
+
+ ( 1)  t = 0
+
+       F(  1,    70) =  379.90
+            Prob > F =    0.0000
+
+. scalar p_tendencia_pib = r(p)
+
+. di "   p-value = " %6.4f p_tendencia_pib
+   p-value = 0.0000
+
+. 
+. * IPC
+. quietly reg ipc t
+
+. di _newline "4. IPC vs Tendencia:"
+
+4. IPC vs Tendencia:
+
+. test t
+
+ ( 1)  t = 0
+
+       F(  1,    70) =   17.40
+            Prob > F =    0.0001
+
+. scalar p_tendencia_ipc = r(p)
+
+. di "   p-value = " %6.4f p_tendencia_ipc
+   p-value = 0.0001
+
+. 
+. di _newline "Nota: Si p-value < 0.05, la tendencia es significativa" _newline
+
+Nota: Si p-value < 0.05, la tendencia es significativa
+
+
+. 
+. * ============================================
+. * PASO 2: PRUEBAS DE RAÍZ UNITARIA EN NIVELES
+. * ============================================
+. 
+. di _newline(2) "=== PASO 2: PRUEBAS DE RAÍZ UNITARIA EN NIVELES ===" _newline
+
+
+=== PASO 2: PRUEBAS DE RAÍZ UNITARIA EN NIVELES ===
+
+
+. 
+. * ===== Variable dependiente: logCONS =====
+. di "===== LOG CONSUMO HOGARES (logCONS) =====" _newline
+===== LOG CONSUMO HOGARES (logCONS) =====
+
+
+. 
+. di "Test Augmented Dickey-Fuller (ADF):"
+Test Augmented Dickey-Fuller (ADF):
+
+. dfuller logCONS, trend lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: logCONS                          Number of obs  = 67
+                                           Number of lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -2.789       -4.113       -3.483       -3.170
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.2009.
+
+. 
+. di _newline "Test Phillips-Perron (PP):"
+
+Test Phillips-Perron (PP):
+
+. pperron logCONS, trend lags(4)
+
+Phillips–Perron test for unit root        Number of obs   = 71
+Variable: logCONS                         Newey–West lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(rho)         -15.180      -26.414      -20.178      -17.094
+ Z(t)            -2.950       -4.104       -3.479       -3.167
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.1466.
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss logCONS, trend
+ 
+KPSS test for logCONS
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: logCONS is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0            .81
+    1           .454
+    2           .327
+    3           .265
+
+. 
+. * ===== Variable independiente principal: logREM =====
+. di _newline(2) "===== LOG REMESAS (logREM) =====" _newline
+
+
+===== LOG REMESAS (logREM) =====
+
+
+. 
+. di "Test Augmented Dickey-Fuller (ADF):"
+Test Augmented Dickey-Fuller (ADF):
+
+. dfuller logREM, trend lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: logREM                           Number of obs  = 67
+                                           Number of lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -1.295       -4.113       -3.483       -3.170
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.8891.
+
+. 
+. di _newline "Test Phillips-Perron (PP):"
+
+Test Phillips-Perron (PP):
+
+. pperron logREM, trend lags(4)
+
+Phillips–Perron test for unit root        Number of obs   = 71
+Variable: logREM                          Newey–West lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(rho)          -1.456      -26.414      -20.178      -17.094
+ Z(t)            -0.561       -4.104       -3.479       -3.167
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.9808.
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss logREM, trend
+ 
+KPSS test for logREM
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: logREM is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0           1.55
+    1           .823
+    2           .577
+    3            .45
+
+. 
+. * ===== Variable de control 1: logPIB =====
+. di _newline(2) "===== LOG PIB REAL (logPIB) =====" _newline
+
+
+===== LOG PIB REAL (logPIB) =====
+
+
+. 
+. di "Test Augmented Dickey-Fuller (ADF):"
+Test Augmented Dickey-Fuller (ADF):
+
+. dfuller logPIB, trend lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: logPIB                           Number of obs  = 67
+                                           Number of lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -1.760       -4.113       -3.483       -3.170
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.7237.
+
+. 
+. di _newline "Test Phillips-Perron (PP):"
+
+Test Phillips-Perron (PP):
+
+. pperron logPIB, trend lags(4)
+
+Phillips–Perron test for unit root        Number of obs   = 71
+Variable: logPIB                          Newey–West lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(rho)          -7.107      -26.414      -20.178      -17.094
+ Z(t)            -1.944       -4.104       -3.479       -3.167
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.6314.
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss logPIB, trend
+ 
+KPSS test for logPIB
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: logPIB is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0           1.23
+    1           .653
+    2           .456
+    3           .358
+
+. 
+. * ===== Variable de control 2: IPC =====
+. di _newline(2) "===== ÍNDICE DE PRECIOS AL CONSUMIDOR (IPC) =====" _newline
+
+
+===== ÍNDICE DE PRECIOS AL CONSUMIDOR (IPC) =====
+
+
+. 
+. di "Test Augmented Dickey-Fuller (ADF):"
+Test Augmented Dickey-Fuller (ADF):
+
+. dfuller ipc, trend lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: ipc                              Number of obs  = 67
+                                           Number of lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -2.281       -4.113       -3.483       -3.170
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.4444.
+
+. 
+. di _newline "Test Phillips-Perron (PP):"
+
+Test Phillips-Perron (PP):
+
+. pperron ipc, trend lags(4)
+
+Phillips–Perron test for unit root        Number of obs   = 71
+Variable: ipc                             Newey–West lags =  4
+
+H0: Random walk with or without drift
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(rho)          -8.812      -26.414      -20.178      -17.094
+ Z(t)            -2.295       -4.104       -3.479       -3.167
+--------------------------------------------------------------
+MacKinnon approximate p-value for Z(t) = 0.4367.
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss ipc, trend
+ 
+KPSS test for ipc
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: ipc is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0            .66
+    1           .351
+    2           .246
+    3           .194
+
+. 
+. di _newline "INTERPRETACIÓN:" _newline ///
+> "ADF y PP: H0 = raíz unitaria (no estacionaria)" _newline ///
+> "  - Si p-value > 0.05 → NO rechazo H0 → Serie es I(1)" _newline ///
+> "KPSS: H0 = estacionaria" _newline ///
+> "  - Si p-value < 0.05 → Rechazo H0 → Serie es I(1)" _newline
+
+INTERPRETACIÓN:
+ADF y PP: H0 = raíz unitaria (no estacionaria)
+  - Si p-value > 0.05 → NO rechazo H0 → Serie es I(1)
+KPSS: H0 = estacionaria
+  - Si p-value < 0.05 → Rechazo H0 → Serie es I(1)
+
+
+. 
+. * ============================================
+. * PASO 3: VERIFICACIÓN EN PRIMERAS DIFERENCIAS
+. * ============================================
+. 
+. di _newline(2) "=== PASO 3: PRUEBAS EN PRIMERAS DIFERENCIAS ===" _newline
+
+
+=== PASO 3: PRUEBAS EN PRIMERAS DIFERENCIAS ===
+
+
+. 
+. * Generar primeras diferencias
+. gen d_logCONS = D.logCONS
+(1 missing value generated)
+
+. gen d_logREM = D.logREM
+(1 missing value generated)
+
+. gen d_logPIB = D.logPIB
+(1 missing value generated)
+
+. gen d_ipc = D.ipc
+(1 missing value generated)
+
+. 
+. label var d_logCONS "Primera diferencia de Log Consumo"
+
+. label var d_logREM "Primera diferencia de Log Remesas"
+
+. label var d_logPIB "Primera diferencia de Log PIB"
+
+. label var d_ipc "Primera diferencia de IPC"
+
+. 
+. * Evaluar componente determinista en diferencias
+. di "Evaluación de tendencia en diferencias:" _newline
+Evaluación de tendencia en diferencias:
+
+
+. 
+. quietly reg d_logCONS t
+
+. di "1. D.logCONS vs tendencia:"
+1. D.logCONS vs tendencia:
+
+. test t
+
+ ( 1)  t = 0
+
+       F(  1,    69) =    0.27
+            Prob > F =    0.6077
+
+. di "   p-value = " %6.4f r(p)
+   p-value = 0.6077
+
+. 
+. quietly reg d_logREM t
+
+. di _newline "2. D.logREM vs tendencia:"
+
+2. D.logREM vs tendencia:
+
+. test t
+
+ ( 1)  t = 0
+
+       F(  1,    69) =    3.14
+            Prob > F =    0.0808
+
+. di "   p-value = " %6.4f r(p)
+   p-value = 0.0808
+
+. 
+. di _newline(2) "Pruebas de raíz unitaria en PRIMERAS DIFERENCIAS:" _newline
+
+
+Pruebas de raíz unitaria en PRIMERAS DIFERENCIAS:
+
+
+. 
+. * ===== D.logCONS =====
+. di "===== PRIMERA DIFERENCIA LOG CONSUMO (D.logCONS) =====" _newline
+===== PRIMERA DIFERENCIA LOG CONSUMO (D.logCONS) =====
+
+
+. 
+. di "Test ADF:"
+Test ADF:
+
+. dfuller d_logCONS, drift lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: d_logCONS                        Number of obs  = 66
+                                           Number of lags =  4
+
+H0: Random walk with drift, d = 0
+
+                                      t-distribution
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -4.781       -2.390       -1.671       -1.296
+--------------------------------------------------------------
+p-value for Z(t) = 0.0000
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss d_logCONS
+ 
+KPSS test for d_logCONS
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: d_logCONS is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0          .0286
+    1          .0361
+    2          .0364
+    3          .0401
+
+. 
+. * ===== D.logREM =====
+. di _newline(2) "===== PRIMERA DIFERENCIA LOG REMESAS (D.logREM) =====" _newline
+
+
+===== PRIMERA DIFERENCIA LOG REMESAS (D.logREM) =====
+
+
+. 
+. di "Test ADF:"
+Test ADF:
+
+. dfuller d_logREM, drift lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: d_logREM                         Number of obs  = 66
+                                           Number of lags =  4
+
+H0: Random walk with drift, d = 0
+
+                                      t-distribution
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -2.923       -2.390       -1.671       -1.296
+--------------------------------------------------------------
+p-value for Z(t) = 0.0024
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss d_logREM
+ 
+KPSS test for d_logREM
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: d_logREM is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0          .0189
+    1          .0226
+    2          .0327
+    3          .0511
+
+. 
+. * ===== D.logPIB =====
+. di _newline(2) "===== PRIMERA DIFERENCIA LOG PIB (D.logPIB) =====" _newline
+
+
+===== PRIMERA DIFERENCIA LOG PIB (D.logPIB) =====
+
+
+. 
+. di "Test ADF:"
+Test ADF:
+
+. dfuller d_logPIB, drift lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: d_logPIB                         Number of obs  = 66
+                                           Number of lags =  4
+
+H0: Random walk with drift, d = 0
+
+                                      t-distribution
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -3.935       -2.390       -1.671       -1.296
+--------------------------------------------------------------
+p-value for Z(t) = 0.0001
+
+. 
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss d_logPIB
+ 
+KPSS test for d_logPIB
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: d_logPIB is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0          .0364
+    1          .0411
+    2          .0408
+    3          .0415
+
+. 
+. * ===== D.ipc =====
+. di _newline(2) "===== PRIMERA DIFERENCIA IPC (D.ipc) =====" _newline
+
+
+===== PRIMERA DIFERENCIA IPC (D.ipc) =====
+
+
+. 
+. di "Test ADF:"
+Test ADF:
+
+. dfuller d_ipc, drift lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: d_ipc                            Number of obs  = 66
+                                           Number of lags =  4
+
+H0: Random walk with drift, d = 0
+
+                                      t-distribution
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -3.719       -2.390       -1.671       -1.296
+--------------------------------------------------------------
+p-value for Z(t) = 0.0002
+
+. 
+. di _newline "Test KPSS:"
+
+Test KPSS:
+
+. kpss d_ipc
+ 
+KPSS test for d_ipc
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: d_ipc is trend stationary
+ 
+10%: 0.119  5% : 0.146  2.5%: 0.176  1% : 0.216
+ 
+Lag order    Test statistic
+    0          .0969
+    1          .0998
+    2           .102
+    3           .103
+
+. 
+. di _newline "INTERPRETACIÓN:" _newline ///
+> "Si las diferencias son I(0) y los niveles I(1)," _newline ///
+> "entonces las series están integradas de orden 1." _newline
+
+INTERPRETACIÓN:
+Si las diferencias son I(0) y los niveles I(1),
+entonces las series están integradas de orden 1.
+
+
+. 
+. * ============================================
+. * PASO 4: REGRESIÓN MCO EN NIVELES
+. * ============================================
+. 
+. di _newline(2) "=== PASO 4: REGRESIÓN MCO EN NIVELES ===" _newline
+
+
+=== PASO 4: REGRESIÓN MCO EN NIVELES ===
+
+
+. 
+. * Modelo de cointegración: logCONS = f(logREM, logPIB, IPC)
+. reg logCONS logREM logPIB ipc
+
+      Source |       SS           df       MS      Number of obs   =        72
+-------------+----------------------------------   F(3, 68)        =    995.78
+       Model |  1.49073981         3  .496913269   Prob > F        =    0.0000
+    Residual |  .033933197        68  .000499018   R-squared       =    0.9777
+-------------+----------------------------------   Adj R-squared   =    0.9768
+       Total |    1.524673        71  .021474268   Root MSE        =    .02234
+
+------------------------------------------------------------------------------
+     logCONS | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+      logREM |   .0475172   .0105072     4.52   0.000     .0265504     .068484
+      logPIB |   .8984118   .0194248    46.25   0.000     .8596503    .9371734
+         ipc |   .0001997   .0001979     1.01   0.317    -.0001952    .0005945
+       _cons |   .6150801   .3117068     1.97   0.053    -.0069211    1.237081
+------------------------------------------------------------------------------
+
+. 
+. * Guardar estadísticos clave
+. scalar R2 = e(r2)
+
+. scalar R2_adj = e(r2_a)
+
+. scalar F_stat = e(F)
+
+. scalar N_obs = e(N)
+
+. scalar RMSE = e(rmse)
+
+. 
+. * Reporte de estadísticos
+. di _newline "========================================"
+
+========================================
+
+. di "ESTADÍSTICOS CLAVE DEL MODELO:"
+ESTADÍSTICOS CLAVE DEL MODELO:
+
+. di "========================================"
+========================================
+
+. di "R-cuadrado:           " %6.4f R2
+R-cuadrado:           0.9777
+
+. di "R-cuadrado ajustado:  " %6.4f R2_adj
+R-cuadrado ajustado:  0.9768
+
+. di "Estadístico F:        " %8.2f F_stat
+Estadístico F:          995.78
+
+. di "Prob > F:             " %6.4f Ftail(e(df_m), e(df_r), e(F))
+Prob > F:             0.0000
+
+. di "RMSE:                 " %6.4f RMSE
+RMSE:                 0.0223
+
+. di "Observaciones:        " N_obs
+Observaciones:        72
+
+. di "========================================" _newline
+========================================
+
+
+. 
+. * Verificación del R² mínimo requerido
+. if R2 >= 0.70 {
+.     di "✓ CUMPLE: R² >= 0.70 (Modelo explica al menos 70% de la variabilidad)"
+✓ CUMPLE: R² >= 0.70 (Modelo explica al menos 70% de la variabilidad)
+. }
+
+. else {
+.     di "✗ NO CUMPLE: R² < 0.70 (Se requiere mayor poder explicativo)"
+. }
+
+. 
+. * ============================================
+. * PASO 5: SIGNIFICANCIA DE LOS COEFICIENTES (BETAS)
+. * ============================================
+. 
+. di _newline(2) "=== PASO 5: SIGNIFICANCIA DE LOS COEFICIENTES ===" _newline
+
+
+=== PASO 5: SIGNIFICANCIA DE LOS COEFICIENTES ===
+
+
+. 
+. * Reestimar modelo para análisis detallado
+. quietly reg logCONS logREM logPIB ipc
+
+. 
+. * Test de significancia conjunta de TODAS las variables
+. di "Test de significancia CONJUNTA (todas las variables):"
+Test de significancia CONJUNTA (todas las variables):
+
+. test logREM logPIB ipc
+
+ ( 1)  logREM = 0
+ ( 2)  logPIB = 0
+ ( 3)  ipc = 0
+
+       F(  3,    68) =  995.78
+            Prob > F =    0.0000
+
+. scalar F_conjunta = r(F)
+
+. scalar p_conjunta = r(p)
+
+. di "   F = " %8.4f F_conjunta
+   F = 995.7830
+
+. di "   Prob > F = " %6.4f p_conjunta
+   Prob > F = 0.0000
+
+. 
+. if p_conjunta < 0.05 {
+.     di "   ✓ Los coeficientes son conjuntamente significativos (α = 0.05)" _newline
+   ✓ Los coeficientes son conjuntamente significativos (α = 0.05)
+
+. }
+
+. else {
+.     di "   ✗ Los coeficientes NO son conjuntamente significativos (α = 0.05)" _newline
+. }
+
+. 
+. * Test de significancia INDIVIDUAL de cada variable
+. di "Tests de significancia INDIVIDUAL:" _newline
+Tests de significancia INDIVIDUAL:
+
+
+. 
+. di "1. Log Remesas (logREM):"
+1. Log Remesas (logREM):
+
+. test logREM
+
+ ( 1)  logREM = 0
+
+       F(  1,    68) =   20.45
+            Prob > F =    0.0000
+
+. di "   F = " %8.4f r(F) "   p-value = " %6.4f r(p)
+   F =  20.4515   p-value = 0.0000
+
+. if r(p) < 0.05 {
+.     di "   ✓ Significativa al 5%" _newline
+   ✓ Significativa al 5%
+
+. }
+
+. else {
+.     di "   ✗ NO significativa al 5%" _newline
+. }
+
+. 
+. di "2. Log PIB (logPIB):"
+2. Log PIB (logPIB):
+
+. test logPIB
+
+ ( 1)  logPIB = 0
+
+       F(  1,    68) = 2139.14
+            Prob > F =    0.0000
+
+. di "   F = " %8.4f r(F) "   p-value = " %6.4f r(p)
+   F =  2.1e+03   p-value = 0.0000
+
+. if r(p) < 0.05 {
+.     di "   ✓ Significativa al 5%" _newline
+   ✓ Significativa al 5%
+
+. }
+
+. else {
+.     di "   ✗ NO significativa al 5%" _newline
+. }
+
+. 
+. di "3. IPC:"
+3. IPC:
+
+. test ipc
+
+ ( 1)  ipc = 0
+
+       F(  1,    68) =    1.02
+            Prob > F =    0.3165
+
+. di "   F = " %8.4f r(F) "   p-value = " %6.4f r(p)
+   F =   1.0183   p-value = 0.3165
+
+. if r(p) < 0.05 {
+.     di "   ✓ Significativa al 5%" _newline
+. }
+
+. else {
+.     di "   ✗ NO significativa al 5%" _newline
+   ✗ NO significativa al 5%
+
+. }
+
+. 
+. * ============================================
+. * PASO 6: DIAGNÓSTICO DE PROBLEMAS DEL MODELO
+. * ============================================
+. 
+. di _newline(2) "=== PASO 6: DIAGNÓSTICO DE SUPUESTOS CLÁSICOS ===" _newline
+
+
+=== PASO 6: DIAGNÓSTICO DE SUPUESTOS CLÁSICOS ===
+
+
+. 
+. * 6.1 HETEROCEDASTICIDAD
+. di "===== 6.1 HETEROCEDASTICIDAD =====" _newline
+===== 6.1 HETEROCEDASTICIDAD =====
+
+
+. 
+. di "Test de Breusch-Pagan:"
+Test de Breusch-Pagan:
+
+. quietly reg logCONS logREM logPIB ipc
+
+. estat hettest
+
+Breusch–Pagan/Cook–Weisberg test for heteroskedasticity 
+Assumption: Normal error terms
+Variable: Fitted values of logCONS
+
+H0: Constant variance
+
+    chi2(1) =   0.06
+Prob > chi2 = 0.7991
+
+. scalar p_bp = r(p)
+
+. if p_bp > 0.05 {
+.     di "   ✓ NO hay evidencia de heterocedasticidad (p = " %6.4f p_bp ")" _newline
+   ✓ NO hay evidencia de heterocedasticidad (p = 0.7991)
+
+. }
+
+. else {
+.     di "   ✗ Existe heterocedasticidad (p = " %6.4f p_bp ")" _newline
+. }
+
+. 
+. di "Test de White:"
+Test de White:
+
+. estat imtest, white
+
+White's test
+H0: Homoskedasticity
+Ha: Unrestricted heteroskedasticity
+
+    chi2(9) =  12.45
+Prob > chi2 = 0.1890
+
+Cameron & Trivedi's decomposition of IM-test
+
+--------------------------------------------------
+              Source |       chi2     df         p
+---------------------+----------------------------
+  Heteroskedasticity |      12.45      9    0.1890
+            Skewness |      10.13      3    0.0175
+            Kurtosis |       0.57      1    0.4485
+---------------------+----------------------------
+               Total |      23.16     13    0.0399
+--------------------------------------------------
+
+. scalar p_white = r(p)
+
+. if p_white > 0.05 {
+.     di "   ✓ NO hay evidencia de heterocedasticidad (p = " %6.4f p_white ")" _newline
+   ✓ NO hay evidencia de heterocedasticidad (p = 0.1890)
+
+. }
+
+. else {
+.     di "   ✗ Existe heterocedasticidad (p = " %6.4f p_white ")" _newline
+. }
+
+. 
+. * 6.2 AUTOCORRELACIÓN
+. di _newline "===== 6.2 AUTOCORRELACIÓN =====" _newline
+
+===== 6.2 AUTOCORRELACIÓN =====
+
+
+. 
+. di "Test de Breusch-Godfrey (LM):"
+Test de Breusch-Godfrey (LM):
+
+. estat bgodfrey, lags(1/4)
+
+Breusch–Godfrey LM test for autocorrelation
+---------------------------------------------------------------------------
+    lags(p)  |          chi2               df                 Prob > chi2
+-------------+-------------------------------------------------------------
+       1     |         17.777               1                   0.0000
+       2     |         17.780               2                   0.0001
+       3     |         17.922               3                   0.0005
+       4     |         17.954               4                   0.0013
+---------------------------------------------------------------------------
+                        H0: no serial correlation
+
+. 
+. di _newline "Estadístico Durbin-Watson:"
+
+Estadístico Durbin-Watson:
+
+. estat dwatson
+
+Durbin–Watson d-statistic(  4,    72) =  1.000325
+
+. scalar dw_stat = r(dw)
+
+. di "   DW = " %6.4f dw_stat
+   DW = 1.0003
+
+. if dw_stat >= 1.5 & dw_stat <= 2.5 {
+.     di "   ✓ No hay autocorrelación severa" _newline
+. }
+
+. else {
+.     di "   ✗ Posible autocorrelación" _newline
+   ✗ Posible autocorrelación
+
+. }
+
+. 
+. * 6.3 ESPECIFICACIÓN DEL MODELO
+. di "===== 6.3 ESPECIFICACIÓN (Test RESET de Ramsey) =====" _newline
+===== 6.3 ESPECIFICACIÓN (Test RESET de Ramsey) =====
+
+
+. estat ovtest
+
+Ramsey RESET test for omitted variables
+Omitted: Powers of fitted values of logCONS
+
+H0: Model has no omitted variables
+
+F(3, 65) =   7.64
+Prob > F = 0.0002
+
+. scalar p_reset = r(p)
+
+. if p_reset > 0.05 {
+.     di "   ✓ Modelo bien especificado (p = " %6.4f p_reset ")" _newline
+. }
+
+. else {
+.     di "   ✗ Problemas de especificación (p = " %6.4f p_reset ")" _newline
+   ✗ Problemas de especificación (p = 0.0002)
+
+. }
+
+. 
+. * 6.4 NORMALIDAD DE RESIDUOS
+. di "===== 6.4 NORMALIDAD DE RESIDUOS =====" _newline
+===== 6.4 NORMALIDAD DE RESIDUOS =====
+
+
+. 
+. predict res1, resid
+
+. label var res1 "Residuos del modelo"
+
+. 
+. di "Test de Shapiro-Wilk:"
+Test de Shapiro-Wilk:
+
+. swilk res1
+
+                   Shapiro–Wilk W test for normal data
+
+    Variable |        Obs       W           V         z       Prob>z
+-------------+------------------------------------------------------
+        res1 |         72    0.98591      0.888    -0.260    0.60255
+
+. scalar p_sw = r(p)
+
+. if p_sw > 0.05 {
+.     di "   ✓ Residuos normales (p = " %6.4f p_sw ")" _newline
+   ✓ Residuos normales (p = 0.6025)
+
+. }
+
+. else {
+.     di "   ✗ Residuos NO normales (p = " %6.4f p_sw ")" _newline
+. }
+
+. 
+. di "Test de Skewness-Kurtosis:"
+Test de Skewness-Kurtosis:
+
+. sktest res1
+
+Skewness and kurtosis tests for normality
+                                                         ----- Joint test -----
+    Variable |       Obs   Pr(skewness)   Pr(kurtosis)   Adj chi2(2)  Prob>chi2
+-------------+-----------------------------------------------------------------
+        res1 |        72         0.3106         0.8282          1.11     0.5750
+
+. 
+. di _newline "Test de Jarque-Bera:"
+
+Test de Jarque-Bera:
+
+. quietly sum res1
+
+. scalar N = r(N)
+
+. scalar S = r(skewness)
+
+. scalar K = r(kurtosis)
+
+. scalar JB = N/6 * (S^2 + (K-3)^2/4)
+
+. scalar p_jb = chi2tail(2, JB)
+
+. di "   JB = " %8.4f JB
+   JB =        .
+
+. di "   p-value = " %6.4f p_jb
+   p-value =      .
+
+. if p_jb > 0.05 {
+.     di "   ✓ Residuos normales" _newline
+   ✓ Residuos normales
+
+. }
+
+. else {
+.     di "   ✗ Residuos NO normales" _newline
+. }
+
+. 
+. * 6.5 MULTICOLINEALIDAD
+. di "===== 6.5 MULTICOLINEALIDAD (VIF) =====" _newline
+===== 6.5 MULTICOLINEALIDAD (VIF) =====
+
+
+. quietly reg logCONS logREM logPIB ipc
+
+. vif
+
+    Variable |       VIF       1/VIF  
+-------------+----------------------
+      logREM |      1.41    0.708907
+      logPIB |      1.28    0.781053
+         ipc |      1.21    0.823441
+-------------+----------------------
+    Mean VIF |      1.30
+
+. di _newline "Nota: VIF > 10 indica multicolinealidad severa" _newline
+
+Nota: VIF > 10 indica multicolinealidad severa
+
+
+. 
+. * 6.6 ESTABILIDAD ESTRUCTURAL
+. di "===== 6.6 ESTABILIDAD ESTRUCTURAL =====" _newline
+===== 6.6 ESTABILIDAD ESTRUCTURAL =====
+
+
+. 
+. di "Test CUSUM (gráfico guardado):"
+Test CUSUM (gráfico guardado):
+
+. quietly reg logCONS logREM logPIB ipc
+
+. estat sbcusum
+
+Cumulative sum test for parameter stability
+
+Sample: 2007q1 thru 2024q4                  Number of obs = 72
+H0: No structural break
+
+                   Test      -------- Critical value ---------
+      Type    statistic           1%           5%          10%
+--------------------------------------------------------------
+ Recursive       0.9656       1.1430       0.9479       0.8499
+--------------------------------------------------------------
+
+. 
+. * ============================================
+. * PASO 7: PREDICCIÓN Y ANÁLISIS DE RESIDUOS
+. * ============================================
+. 
+. di _newline(2) "=== PASO 7: ANÁLISIS DE RESIDUOS ===" _newline
+
+
+=== PASO 7: ANÁLISIS DE RESIDUOS ===
+
+
+. 
+. * Predicción de residuos (ya generados como res1)
+. quietly reg logCONS logREM logPIB ipc
+
+. predict ehat, resid
+
+. label var ehat "Residuos estimados (ehat)"
+
+. 
+. * Estadísticas descriptivas de residuos
+. di "Estadísticas descriptivas de los residuos:" _newline
+Estadísticas descriptivas de los residuos:
+
+
+. summarize ehat, detail
+
+                  Residuos estimados (ehat)
+-------------------------------------------------------------
+      Percentiles      Smallest
+ 1%    -.0493601      -.0493601
+ 5%    -.0326339      -.0389544
+10%    -.0273722      -.0369235       Obs                  72
+25%    -.0139626      -.0326339       Sum of wgt.          72
+
+50%    -.0021446                      Mean          -1.32e-10
+                        Largest       Std. dev.      .0218617
+75%     .0168758       .0434618
+90%     .0251229        .044423       Variance       .0004779
+95%     .0434618        .045012       Skewness       .2733974
+99%     .0543202       .0543202       Kurtosis       2.728622
+
+. 
+. * Gráfico de residuos en el tiempo
+. tsline ehat, title("Residuos del Modelo de Cointegración") ///
+>     ytitle("Residuos") xtitle("Tiempo") ///
+>     tlabel(2015q1(4)2024q4, angle(45)) ///
+>     yline(0, lcolor(red) lpattern(dash))
+
+. 
+. * Correlograma - ACF
+. ac ehat, lags(12) title("Función de Autocorrelación (ACF) de Residuos") ///
+>     name(acf_plot, replace)
+
+. 
+. * Correlograma - PACF
+. pac ehat, lags(12) title("Función de Autocorrelación Parcial (PACF) de Residuos") ///
+>     name(pacf_plot, replace)
+
+. 
+. * Histograma de residuos
+. histogram ehat, normal kdensity ///
+>     title("Distribución de Residuos") ///
+>     xtitle("Residuos") ytitle("Densidad") ///
+>     name(hist_resid, replace)
+(bin=8, start=-.04936009, width=.01296004)
+
+. 
+. * Q-Q plot para normalidad
+. qnorm ehat, name(qq_plot, replace)
+
+. 
+. * ============================================
+. * PASO 8: TEST DE COINTEGRACIÓN (Residuos)
+. * ============================================
+. 
+. di _newline(2) "=== PASO 8: TEST DE COINTEGRACIÓN ===" _newline
+
+
+=== PASO 8: TEST DE COINTEGRACIÓN ===
+
+
+. di "Pruebas de raíz unitaria sobre los RESIDUOS del modelo" _newline
+Pruebas de raíz unitaria sobre los RESIDUOS del modelo
+
+
+. 
+. * Nota: Los residuos de una regresión cointegrada NO deben tener
+. * constante ni tendencia en las pruebas de raíz unitaria
+. 
+. di "Test Augmented Dickey-Fuller (ADF) - sin constante:"
+Test Augmented Dickey-Fuller (ADF) - sin constante:
+
+. dfuller ehat, noconstant lags(4)
+
+Augmented Dickey–Fuller test for unit root
+
+Variable: ehat                             Number of obs  = 67
+                                           Number of lags =  4
+
+H0: Random walk without drift, a = 0, d = 0
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(t)            -4.317       -2.613       -1.950       -1.610
+--------------------------------------------------------------
+
+. scalar p_adf_resid = r(p)
+
+. 
+. di _newline "Test Phillips-Perron (PP) - sin constante:"
+
+Test Phillips-Perron (PP) - sin constante:
+
+. pperron ehat, noconstant lags(4)
+
+Phillips–Perron test for unit root        Number of obs   = 71
+Variable: ehat                            Newey–West lags =  4
+
+H0: Random walk without drift, a = 0, d = 0
+
+                                       Dickey–Fuller
+                   Test      -------- critical value ---------
+              statistic           1%           5%          10%
+--------------------------------------------------------------
+ Z(rho)         -36.900      -13.068       -7.784       -5.542
+ Z(t)            -4.850       -2.612       -1.950       -1.610
+--------------------------------------------------------------
+
+. scalar p_pp_resid = r(p)
+
+. 
+. di _newline "Test KPSS - sin constante:"
+
+Test KPSS - sin constante:
+
+. kpss ehat, notrend
+ 
+KPSS test for ehat
+ 
+Maxlag = 3 chosen by Schwert criterion
+Autocovariances weighted by Bartlett kernel
+ 
+Critical values for H0: ehat is level stationary
+ 
+10%: 0.347  5% : 0.463  2.5%: 0.574  1% : 0.739
+ 
+Lag order    Test statistic
+    0           .143
+    1          .0958
+    2          .0786
+    3          .0706
+
+. scalar kpss_stat = r(stat)
+
+. 
+. * Interpretación de cointegración
+. di _newline "========================================"
+
+========================================
+
+. di "INTERPRETACIÓN DE COINTEGRACIÓN:"
+INTERPRETACIÓN DE COINTEGRACIÓN:
+
+. di "========================================" _newline
+========================================
+
+
+. 
+. di "Hipótesis en ADF y PP:" _newline ///
+> "  H0: Los residuos tienen raíz unitaria (NO cointegración)" _newline ///
+> "  H1: Los residuos son estacionarios (SÍ cointegración)" _newline
+Hipótesis en ADF y PP:
+  H0: Los residuos tienen raíz unitaria (NO cointegración)
+  H1: Los residuos son estacionarios (SÍ cointegración)
+
+
+. 
+. if p_adf_resid < 0.05 {
+.     di "Test ADF: ✓ RECHAZA H0 → Evidencia de cointegración (p = " %6.4f p_adf_resid ")"
+. }
+
+. else {
+.     di "Test ADF: ✗ NO rechaza H0 → Sin evidencia de cointegración (p = " %6.4f p_adf_resi
+> d ")"
+Test ADF: ✗ NO rechaza H0 → Sin evidencia de cointegración (p =      .)
+. }
+
+. 
+. if p_pp_resid < 0.05 {
+.     di "Test PP:  ✓ RECHAZA H0 → Evidencia de cointegración (p = " %6.4f p_pp_resid ")"
+. }
+
+. else {
+.     di "Test PP:  ✗ NO rechaza H0 → Sin evidencia de cointegración (p = " %6.4f p_pp_resid
+>  ")"
+Test PP:  ✗ NO rechaza H0 → Sin evidencia de cointegración (p =      .)
+. }
+
+. 
+. di _newline "Hipótesis en KPSS:" _newline ///
+> "  H0: Los residuos son estacionarios (SÍ cointegración)" _newline ///
+> "  H1: Los residuos tienen raíz unitaria (NO cointegración)" _newline
+
+Hipótesis en KPSS:
+  H0: Los residuos son estacionarios (SÍ cointegración)
+  H1: Los residuos tienen raíz unitaria (NO cointegración)
+
+
+. 
+. di "Test KPSS: Estadístico = " %6.4f kpss_stat _newline
+Test KPSS: Estadístico =      .
+
+
+. 
+. * Conclusión final
+. di _newline "========================================"
+
+========================================
+
+. di "CONCLUSIÓN SOBRE COINTEGRACIÓN:"
+CONCLUSIÓN SOBRE COINTEGRACIÓN:
+
+. di "========================================" _newline
+========================================
+
+
+. 
+. if (p_adf_resid < 0.05 | p_pp_resid < 0.05) {
+.     di "✓ EXISTE COINTEGRACIÓN entre las variables." _newline ///
+>     "  Las series comparten una relación de equilibrio de largo plazo." _newline ///
+>     "  Los residuos son estacionarios I(0), aunque las variables" _newline ///
+>     "  individuales sean I(1)." _newline
+. }
+
+. else {
+.     di "✗ NO EXISTE evidencia suficiente de cointegración." _newline ///
+>     "  Las variables podrían no tener una relación estable" _newline ///
+>     "  de largo plazo." _newline
+✗ NO EXISTE evidencia suficiente de cointegración.
+  Las variables podrían no tener una relación estable
+  de largo plazo.
+
+. }
+
+. 
+. * Cerrar cualquier log abierto
+. capture log close
